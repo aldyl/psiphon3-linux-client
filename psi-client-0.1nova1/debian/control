@@ -1,0 +1,14 @@
+Source: psi-client
+Section: net
+Priority: optional
+Maintainer: Aldy Leon <aldyleongarcia@gmail.com>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.3
+Vcs-Browser: https://github.com/Psiphon-Labs/psiphon-tunnel-core.git
+
+
+Package: psi-client
+Architecture: amd64
+Depends: adduser
+Description: Fast Psiphon vpn with tunneling
+ Pisiphon is a fast and efficient VPN tunnel

@@ -1,0 +1,52 @@
+{
+  "configuration": {
+    "type": "header",
+    "description": "Configuration"
+  },
+  "interval": {
+    "type": "spinbutton",
+    "default": 5000,
+    "min": 2000,
+    "max": 30000,
+    "step": 100,
+    "units": "ms",
+    "description": "Update interval"
+  },
+  "location": {
+    "type": "combobox",
+    "default": "smart",
+    "description": "Location Server",
+    "options": {
+      "Smart Location": "automatic",
+      "Austria (AT)": "AT",
+      "Belgium (BE)": "BE",
+      "Bulgaria (BG)": "BG",
+      "Canada (CA)": "CA",
+      "Switzerland (CH)": "CH",
+      "Czech Republic (CZ)": "CZ",
+      "Germany (DE)": "DE",
+      "Denmark (DK)": "DK",
+      "Estonia (EE)": "EE",
+      "Espanna (ES)": "ES",
+      "Finland (FI)": "FI",
+      "Francia (FR)": "FR",
+      "Grand Bretanna (BR)": "BR",
+      "Hungary (HU)": "HU",
+      "Ireland (IE)": "IE",
+      "India (IN)": "IN",
+      "Italia (IT)": "IT",
+      "Japon (JP)": "JP",
+      "Latvia (LV)": "LV",
+      "Paises Bajos (NL)": "NL",
+      "Norway (NO)": "NO",
+      "Poland (PL) ": "PL",
+      "Romania (RO)": "RO",
+      "Serbia (RS)": "RS",
+      "Sweden (SE)": "SE",
+      "Singapur (SG)": "SG",
+      "Slovakia (SK)": "SK",
+      "EEUU (US)": "US"
+    },
+    "tooltip": "IP Location"
+  }
+}

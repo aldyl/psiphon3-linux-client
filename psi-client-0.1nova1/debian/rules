@@ -1,0 +1,48 @@
+#!/usr/bin/make -f
+#
+# This file was originally written by Joey Hess and Craig Small.
+# As a special exception, when this file is copied by dh-make into a
+# dh-make output file, you may use that output file without restriction.
+# This special exception was added by Craig Small in version 0.37 of dh-make.
+
+#export DH_VERBOSE=1
+
+clean:
+	dh_clean 
+# Build architecture-dependent files here.
+build:
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs
+	dh_installdocs
+	dh_install
+	mkdir -p debian/psi-client/usr/sbin/
+	cp psi-client-core debian/psi-client/usr/sbin/psi-client-core
+	mkdir -p debian/psi-client/etc/
+	cp psi-client.conf debian/psi-client/etc/psi-client.conf
+	mkdir -p debian/psi-client/var/local/psi-client/ca.psiphon.PsiphonTunnel.tunnel-core/
+	mkdir -p debian/psi-client/usr/share/dbus-1/system-services/
+	cp -rf service-controller/data/cu.human.psiclient.controller.service    debian/psi-client/usr/share/dbus-1/system-services/cu.human.psiclient.controller.service
+	mkdir -p debian/psi-client/usr/share/polkit-1/actions/
+	cp -rf service-controller/data/cu.human.psiclient.controller.policy    debian/psi-client/usr/share/polkit-1/actions/cu.human.psiclient.controller.policy
+	mkdir -p debian/psi-client/etc/dbus-1/system.d/
+	cp -rf service-controller/data/cu.human.psiclient.controller.conf    debian/psi-client/etc/dbus-1/system.d/cu.human.psiclient.controller.conf
+	mkdir -p debian/psi-client/usr/lib/psi-client/
+	cp -rf service-controller/libpsiclient/   debian/psi-client/usr/lib/psi-client/
+	mkdir -p  debian/psi-client/usr/bin/
+	cp -rf service-controller/psi-client   debian/psi-client/usr/bin/psi-client
+	cp -rf service-controller/psi-client-service   debian/psi-client/usr/bin/psi-client-service
+	mkdir -p  debian/psi-client/usr/share/cinnamon/applets/
+	cp -rf cinnamon.applet/psi-client@Human/ debian/psi-client/usr/share/cinnamon/applets/
+	dh_installdebconf	
+	dh_installinit -n
+	dh_link
+	dh_compress
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+binary:
+	dh_builddeb
+
+.PHONY: clean build binary

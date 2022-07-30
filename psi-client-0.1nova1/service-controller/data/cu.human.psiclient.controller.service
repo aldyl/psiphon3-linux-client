@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=cu.human.psiclient.controller
+Exec=/usr/bin/psi-client-service
+User=root

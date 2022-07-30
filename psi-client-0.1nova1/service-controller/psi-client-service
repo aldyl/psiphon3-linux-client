@@ -1,0 +1,87 @@
+#!/usr/bin/python3
+import dbus
+import dbus.service
+import dbus.mainloop.glib
+
+from dbus.mainloop.glib import DBusGMainLoop
+from gi.repository import GLib
+
+import os, sys
+from os.path import join, exists
+
+if exists(join(os.path.curdir, 'libpsiclient')):
+    LIB_DIR = join(os.path.curdir, 'libpsiclient')
+else:
+    LIB_DIR = "/usr/lib/psi-client"
+
+sys.path.insert(1, LIB_DIR)
+
+from libpsiclient.manager import exec_service
+
+SERVICE_NAME = 'cu.human.psiclient.controller'
+SERVICE_PATH = '/cu/human/psiclient/controller'
+INTERFACE_NAME = 'cu.human.psiclient.controller'
+
+class PolkitInterface:
+    NOT_AUTHORIZED_EXCEPTION='cu.human.psiclient.controller.Error.NotAuthorized'
+
+    def __init__(self):
+        self.dbus_info = None
+        self.polkit = None
+
+    def check_polkit(self, sender, conn, priv):
+        if sender is None and conn is None:
+            return
+        if self.dbus_info is None:
+            self.dbus_info = dbus.Interface(conn.get_object(
+                                            'org.freedesktop.DBus',
+                                            '/org/freedesktop/DBus/Bus',
+                                            False), 'org.freedesktop.DBus')
+        pid = self.dbus_info.GetConnectionUnixProcessID(sender)
+        if self.polkit is None:
+            self.polkit = dbus.Interface(dbus.SystemBus().get_object(
+                                'org.freedesktop.PolicyKit1',
+                                '/org/freedesktop/PolicyKit1/Authority',
+                                False), 'org.freedesktop.PolicyKit1.Authority')
+        try:
+            # we don't need is_challenge return here, since we call with AllowUserInteraction
+            (is_auth, _, details) = self.polkit.CheckAuthorization(
+                                    ('system-bus-name', {'name': dbus.String(sender,
+                                        variant_level = 1)}), priv, {'': ''},
+                                    dbus.UInt32(1), '', timeout=600)
+        except dbus.DBusException as e:
+            if e._dbus_error_name == 'org.freedesktop.DBus.Error.ServiceUnknown':
+                # polkitd timed out, connect again
+                self.polkit = None
+                return self.check_polkit(sender, conn, priv)
+            else:
+                raise
+
+        if not is_auth:
+            print('_check_polkit_privilege: sender %s on connection %s '
+                            'pid %i is not authorized for %s: %s' %
+                            (sender, conn, pid, priv, str(details)))
+            raise dbus.DBusException(self.NOT_AUTHORIZED_EXCEPTION)
+    
+class PsiClientService(dbus.service.Object):
+
+    QUERY_PSI_INFORMATION_PERMISSION="cu.human.psiclient.controller.get_permission"
+
+    def __init__(self):
+        bus_name = dbus.service.BusName(INTERFACE_NAME, bus=dbus.SystemBus())
+        dbus.service.Object.__init__(self, bus_name, SERVICE_PATH)
+
+        self.polkit_agent = PolkitInterface()
+    
+    @dbus.service.method(dbus_interface=INTERFACE_NAME, in_signature='s', out_signature='', 
+                            sender_keyword='sender', connection_keyword='conn')
+    def _exec_service(self, action, sender=None, conn=None):
+        self.polkit_agent.check_polkit(sender, conn, self.QUERY_PSI_INFORMATION_PERMISSION)
+        return  exec_service(action)
+   
+    
+if __name__ == "__main__":
+    DBusGMainLoop(set_as_default=True)
+    service = PsiClientService()
+    loop = GLib.MainLoop()
+    loop.run()

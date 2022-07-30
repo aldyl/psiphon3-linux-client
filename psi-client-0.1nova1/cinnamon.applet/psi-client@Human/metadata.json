@@ -1,0 +1,8 @@
+{
+    "uuid": "psi-client@Human",
+    "name": "Psiphon",
+    "description": "Connect to Pisiphon network",
+    "max-instances": "1",
+    "author": "Human",
+    "last-edited": 1612618827
+}

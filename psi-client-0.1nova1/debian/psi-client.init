@@ -1,0 +1,123 @@
+#!/bin/sh
+#
+### BEGIN INIT INFO
+# Provides:          psi-client
+# Required-Start:    $remote_fs $syslog $time $network
+# Required-Stop:     $remote_fs $syslog $time $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Pisiphon Core Client
+# Description:       Open free Internet VPN
+### END INIT INFO
+#
+# DAEMON             Location of the binary
+# PIDFILE            Make sure that you or, if used, -U uid can create/write it
+# TIMEOUT            How long to wait for active connections to finish before
+#                    forcing psi-client to stop with a second signal
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/sbin/psi-client-core
+NAME=psi-client
+DESC="Psiphon Core Client"
+
+# Set default values
+PSI_PIDFILE=/var/run/psi-client/psi-client.pid
+PSI_CONF_FILE=/etc/psi-client.conf
+PSI_LOG_FILE=/var/log/psi-client.json
+PSI_DATA=/var/local/psi-client/
+PSI_OPTS="-config $PSI_CONF_FILE  -notices $PSI_LOG_FILE -dataRootDirectory $PSI_DATA"
+RUNAS=$NAME
+
+# Include custom values if available
+if [ -f /etc/default/psi-client ]; then
+	. /etc/default/psi-client
+fi
+DAEMON_OPTS="$DAEMON_OPTS $PSI_OPTS"
+PIDDIR=$(dirname $PSI_PIDFILE 2>/dev/null)
+
+test -x $DAEMON || exit 0
+
+. /lib/lsb/init-functions
+test -r /etc/default/rcS && . /etc/default/rcS
+
+start() {
+
+	if [ ! -s "$PSI_CONF_FILE" ]; then
+		log_failure_msg "missing or empty config file $PSI_CONF_FILE"
+		log_end_msg 1
+		exit 0
+	fi
+
+	if [ ! -d "$PIDDIR" ]; then
+		log_daemon_msg "make pid file folder $PIDDIR"
+        mkdir -p $PIDDIR 2>/dev/null
+        chown $RUNAS $PIDDIR 2>/dev/null
+        chmod 755 $PIDDIR 2>/dev/null
+	fi
+
+	log_daemon_msg "Starting $DESC: " "$NAME"
+
+	echo "{"$NAME":"$DAEMON_OPTS"}" >$PSI_LOG_FILE
+	chown "$RUNAS" "$PSI_LOG_FILE" 2>/dev/null
+	chmod 755 "$PSI_LOG_FILE" 2>/dev/null
+
+	if start-stop-daemon --start --background --pidfile $PSI_PIDFILE --make-pidfile \
+		--exec $DAEMON -- $DAEMON_OPTS; then
+		rc=0
+		sleep 1
+		if ! kill -0 $(cat $PSI_PIDFILE) >/dev/null 2>&1; then
+			log_failure_msg "$NAME daemon failed to start"
+			rc=1
+		fi
+	else
+		rc=1
+	fi
+	if [ $rc -eq 0 ]; then
+		log_end_msg 0
+	else
+		log_end_msg 1
+		rm -f $PSI_PIDFILE
+	fi
+} # psi_start
+
+stop() {
+	log_daemon_msg "Stopping $NAME daemon" "$NAME"
+	start-stop-daemon --stop --quiet --oknodo --retry 30 --pidfile $PSI_PIDFILE
+	RETVAL="$?"
+	log_end_msg $RETVAL
+	if [ $RETVAL != 0 ]; then
+		exit 1
+	fi
+	rm -f $PSI_PIDFILE
+}
+
+case "$1" in
+start)
+	log_daemon_msg "Starting psi-client daemon" "$NAME"
+	if [ -s $PSI_PIDFILE ] && kill -0 $(cat $PSI_PIDFILE) >/dev/null 2>&1; then
+		log_progress_msg "apparently already running"
+		log_end_msg 0
+		exit 0
+	fi
+	start
+	;;
+stop)
+	stop
+	;;
+restart | reload | force-reload)
+	stop
+	start
+	;;
+status)
+	status_of_proc -p $PIDFILE $DAEMON $NAME && exit 0 || exit $?
+	;;
+logcat)
+	cat $PSI_LOG_FILE && exit 0 || exit $?
+	;;
+*)
+	echo "Usage: $0 {start|stop|restart|reload|force-reload|status|logcat}" >&2
+	exit 2
+	;;
+esac
+
+exit 0

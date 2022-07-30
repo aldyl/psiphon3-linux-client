@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Postrm script for psi-client
+#
+
+set -e
+
+NAME=psi-client
+
+if [ "$1" = "purge" ]; then
+
+	# Remove user psi-client
+	home=`getent passwd $NAME | cut -d : -f 6`
+	rm -f "$home/$NAME.pid" >/dev/null 2>&1 || true
+	userdel $NAME || true
+	rmdir "$home" >/dev/null 2>&1 || true
+fi
+
+#DEBHELPER#
+
+# Automatically added by dh_installinit
+if [ "$1" = "purge" ] ; then
+	update-rc.d psi-client remove >/dev/null || exit $?
+fi
+# End automatically added section

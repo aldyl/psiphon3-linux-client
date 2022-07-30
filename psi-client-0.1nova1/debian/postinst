@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# Postinst script for psi-client
+#
+
+set -e
+
+NAME=psi-client
+HOME=/var/run/psi-client
+
+# Create psi-client user and its homedir
+if ! getent passwd $NAME >/dev/null; then
+	adduser --system --home $HOME --shell /bin/sh --disabled-password $NAME
+fi
+
+if ! [ -d $HOME ]; then
+	mkdir -p $HOME
+	chmod 755 $HOME
+	chown -h -R $NAME $HOME
+fi
+
+#DEBHELPER#
+
+# Automatically added by dh_installinit
+if [ -x "/etc/init.d/psi-client" ]; then
+	update-rc.d psi-client defaults >/dev/null
+	if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+		invoke-rc.d psi-client start || exit $?
+	else
+		/etc/init.d/psi-client start || exit $?
+	fi
+fi
+# End automatically added section

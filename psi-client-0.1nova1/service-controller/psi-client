@@ -1,0 +1,46 @@
+#!/usr/bin/python3
+from optparse import OptionParser
+import sys
+from dbus.mainloop.glib import DBusGMainLoop
+
+import os
+from os.path import exists, join
+
+if exists(join(os.path.curdir, 'libpsiclient')):
+    LIB_DIR = join(os.path.curdir, 'libpsiclient')
+else:
+    LIB_DIR = "/usr/lib/psi-client"
+
+sys.path.insert(1, LIB_DIR)
+
+from libpsiclient.dbus_client import get_psi_controller
+
+def start_psiclient(controller):
+    controller._exec_service("start")
+
+def restart_psiclient(controller):
+    controller._exec_service("restart")
+
+def stop_psiclient(controller):
+    controller._exec_service("stop")
+    
+VERSION = 1
+if __name__ == '__main__':
+    DBusGMainLoop(set_as_default=True)
+    controller = get_psi_controller()
+
+    parser = OptionParser("usage: %prog --action=(start|restart|stop)",
+                          version="%prog " + str(VERSION))
+    parser.add_option("--action", action="store", type="string", default="start",
+                      help="Select service activation"
+                      )
+    (option, args) = parser.parse_args()
+
+    if option.action == "start":
+        start_psiclient(controller)
+    elif option.action == "restart":
+        restart_psiclient(controller)
+    elif option.action == "stop":
+        stop_psiclient(controller)
+    else:
+        print("Null")
