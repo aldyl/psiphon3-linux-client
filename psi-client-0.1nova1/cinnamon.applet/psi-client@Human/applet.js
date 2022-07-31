@@ -231,21 +231,28 @@ PsiClientApplet.prototype = {
 
     if (is_active) {
       let connected =
-        " " + GLib.spawn_command_line_sync(this.servicePath + " logcat");
+        " " + GLib.spawn_command_line_sync("psi-client --location");
 
-      this.is_connected =
-        connected.lastIndexOf('"data":{"count":1},"noticeType":"Tunnels"') >
-        connected.lastIndexOf('"data":{"count":0},"noticeType":"Tunnels"');
+      this.is_connected = connected.lastIndexOf("success");
 
-      global.log("assas " + this.is_connected);
       if (this.is_connected) {
-        this.set_applet_icon_path(this.icon_connected);
-        this.set_applet_tooltip(_("Connected: ") + this.state.location);
+        let ip = " " + GLib.spawn_command_line_sync("psi-client --ip");
+        let country =
+          " " + GLib.spawn_command_line_sync("psi-client --country");
+        let country_code =
+          " " + GLib.spawn_command_line_sync("psi-client --country-code");
+        let city = " " + GLib.spawn_command_line_sync("psi-client --city");
 
-        items_info.push(_("Service Connected"));
-        items_info.push(_("Country: ") + this.state.location);
-        items_info.push(_("IP: ") + "156.12.34.23");
+        this.set_applet_icon_path(this.icon_connected);
+        this.set_applet_tooltip(_("On line"));
+
+        items_info.push(country);
+        items_info.push(_("Country code: ") + country_code);
+        items_info.push(_("City: ") + city);
+        items_info.push(_("IP: ") + ip);
+        
       } else {
+
         this.set_applet_icon_path(this.icon_active);
         this.set_applet_tooltip(_("Await for network"));
         items_info.push(_("Await for Network"));

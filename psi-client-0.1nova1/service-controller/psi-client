@@ -3,44 +3,141 @@ from optparse import OptionParser
 import sys
 from dbus.mainloop.glib import DBusGMainLoop
 
+import requests
+import json
+
 import os
 from os.path import exists, join
+
+
+VERSION = 1
+NAME = "psi-client"
 
 if exists(join(os.path.curdir, 'libpsiclient')):
     LIB_DIR = join(os.path.curdir, 'libpsiclient')
 else:
-    LIB_DIR = "/usr/lib/psi-client"
+    LIB_DIR = "/usr/lib/"+str(NAME)
+
+print(LIB_DIR)
 
 sys.path.insert(1, LIB_DIR)
 
 from libpsiclient.dbus_client import get_psi_controller
 
-def start_psiclient(controller):
-    controller._exec_service("start")
+class PsiManager():
+    def __init__(self) -> None:
+        self.config_file_path = "/etc/"+str(NAME)+".conf"
+        self.config_file_json = ""
+        self.local_proxy_port = 8081
+        self.egress_region = ''
+        self.split_tunnel_own_region = True
+        self.use_indistinguishable_tls = True
+        self.up_stream_proxy_url = "http://127.0.0.1:3128"
+        self.ip_info_path = "/tmp/"+str(NAME)+"/ip_info.json"
 
-def restart_psiclient(controller):
-    controller._exec_service("restart")
+    def get_conf(self):
+        try:
+            config_file_fd = open(self.config_file_path)
+            self.config_file_json = json.loads(config_file_fd.read())
+            config_file_fd.close()
 
-def stop_psiclient(controller):
-    controller._exec_service("stop")
-    
-VERSION = 1
+            self.local_proxy_port = self.config_file_json['LocalHttpProxyPort']
+            self.local_socks_proxy_port = self.config_file_json['LocalSocksProxyPort']
+            self.egress_region = self.config_file_json['EgressRegion']
+            self.split_tunnel_own_region = self.config_file_json['SplitTunnelOwnRegion']
+            self.use_indistinguishable_tls = self.config_file_json['UseIndistinguishableTLS']
+            self.up_stream_proxy_url = self.config_file_json['UpstreamProxyUrl']
+        except:
+            pass
+
+    def set_conf(self):
+        controller._save_conf(self.config_file_path, self.config_file_json)
+
+    def start_psiclient(self, controller):
+        controller._exec_service("start")
+
+    def restart_psiclient(self, controller):
+        controller._exec_service("restart")
+
+    def stop_psiclient(self, controller):
+        controller._exec_service("stop")
+
+    def get_ip_info(self, opt, value, values, val):
+        try:
+            session = requests.Session()
+            session.proxies = {'http': 'http://127.0.0.1:' + str(self.local_proxy_port),
+                            'https': 'http://127.0.0.1:' + str(self.local_proxy_port), }
+
+            url_text = session.get("http://ip-api.com/json").text
+            if not exists("/tmp/"+str(NAME)+"/"):
+                os.mkdir("/tmp/"+str(NAME)+"/")
+            fd = open(self.ip_info_path, 'w')
+            fd.write(url_text)
+            fd.close()
+            print("success")
+        except:
+            print("error")
+
+    def open_ip_info(self, query: str):
+        fd = open(self.ip_info_path)
+        ip_info_json = json.loads(fd.read())
+        fd.close()
+        print(ip_info_json[query])
+        return ip_info_json[query]
+
+    def get_ip(self, opt, value, values, val):
+        return self.open_ip_info('query')
+
+    def get_country(self, opt, value, values, val):
+        return self.open_ip_info('country')
+
+    def get_country_code(self, opt, value, values, val):
+        return self.open_ip_info('countryCode')
+
+    def get_city(self, opt, value, values, val):
+        return self.open_ip_info('city')
+
+
+
 if __name__ == '__main__':
     DBusGMainLoop(set_as_default=True)
     controller = get_psi_controller()
+    psi_manager = PsiManager()
+    psi_manager.get_conf()
 
     parser = OptionParser("usage: %prog --action=(start|restart|stop)",
                           version="%prog " + str(VERSION))
-    parser.add_option("--action", action="store", type="string", default="start",
+    parser.add_option("-a", "--action", action="store", type="string", default="start",
                       help="Select service activation"
                       )
+
+    parser.add_option("--location",
+                      action="callback", callback=psi_manager.get_ip_info,
+                      help="show current ip on internet")
+
+    parser.add_option("--ip",
+                      action="callback", callback=psi_manager.get_ip,
+                      help="show current ip on internet")
+
+    parser.add_option("--country",
+                      action="callback", callback=psi_manager.get_country,
+                      help="show current country on internet")
+
+    parser.add_option("--country-code",
+                      action="callback", callback=psi_manager.get_country_code,
+                      help="show current country code on internet")
+
+    parser.add_option("--city",
+                      action="callback", callback=psi_manager.get_city,
+                      help="show current city on internet")
+
     (option, args) = parser.parse_args()
 
     if option.action == "start":
-        start_psiclient(controller)
+        psi_manager.start_psiclient(controller)
     elif option.action == "restart":
-        restart_psiclient(controller)
+        psi_manager.restart_psiclient(controller)
     elif option.action == "stop":
-        stop_psiclient(controller)
+        psi_manager.stop_psiclient(controller)
     else:
         print("Null")
