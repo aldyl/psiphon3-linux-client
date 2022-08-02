@@ -86,14 +86,8 @@ class PsiManager():
             else:
                 if ('UpstreamProxyUrl' in self.config_file_json):
                     del self.config_file_json['UpstreamProxyUrl']
-            
-            config_file_tmp_path = "/tmp/psi-client.conf.tmp"
-            fd=open(config_file_tmp_path, "w")
-            fd.truncate
-            fd.write(json.dumps(self.config_file_json))
-            fd.close()
-            
-            controller._save_conf(self.config_file_path, config_file_tmp_path)
+                        
+            controller._save_conf(self.config_file_path, json.dumps(self.config_file_json))
 
 
 # Setters
@@ -242,6 +236,25 @@ if __name__ == '__main__':
                       action="callback", callback=psi_manager.stop_psiclient, callback_args=(controller, ),
                       help="stop psi-client service")
 
+    parser.add_option("--set_country",
+                      action="store", type="string",
+                      help="set country code")
+    parser.add_option("--set_upstream_proxy",
+                      action="store", type="string",
+                      help="set upper proxy")
+    parser.add_option("--set_split_tunnel",
+                      action="store", type="string",
+                      help="split proxy for local country")
+    parser.add_option("--set_tls",
+                      action="store", type="string",
+                      help="use crypto tls")
+    parser.add_option("--set_local_proxy_port",
+                      action="store", type="int",
+                      help="set psiphon proxy port")
+    parser.add_option("--set_local_socks_proxy_port",
+                      action="store", type="int",
+                      help="set psiphon socks port")
+
     parser.add_option("--get_country",
                       action="callback", callback=psi_manager.get_country,
                       help="get country code")
@@ -265,25 +278,6 @@ if __name__ == '__main__':
     parser.add_option("--get_local_socks_proxy_port",
                       action="callback", callback=psi_manager.get_local_socks_proxy_port,
                       help="get psiphon socks port")
-
-    parser.add_option("--set_country",
-                      action="store", type="string",
-                      help="set country code")
-    parser.add_option("--set_upstream_proxy",
-                      action="store", type="string",
-                      help="set upper proxy")
-    parser.add_option("--set_split_tunnel",
-                      action="store", type="string",
-                      help="split proxy for local country")
-    parser.add_option("--set_tls",
-                      action="store", type="string",
-                      help="use crypto tls")
-    parser.add_option("--set_local_proxy_port",
-                      action="store", type="int",
-                      help="set psiphon proxy port")
-    parser.add_option("--set_local_socks_proxy_port",
-                      action="store", type="int",
-                      help="set psiphon socks port")
 
     (option, args) = parser.parse_args()
 

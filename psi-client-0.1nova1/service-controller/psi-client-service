@@ -81,9 +81,9 @@ class PsiClientService(dbus.service.Object):
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME, in_signature='ss', out_signature='', 
                             sender_keyword='sender', connection_keyword='conn')    
-    def _save_conf(self, config_file_path, config_file_tmp_path,  sender=None, conn=None):
+    def _save_conf(self, config_file_path, config_file_json,  sender=None, conn=None):
         self.polkit_agent.check_polkit(sender, conn, self.QUERY_PSI_INFORMATION_PERMISSION)
-        return save_conf(config_file_path, config_file_tmp_path)
+        return save_conf(config_file_path, config_file_json)
    
     
 if __name__ == "__main__":

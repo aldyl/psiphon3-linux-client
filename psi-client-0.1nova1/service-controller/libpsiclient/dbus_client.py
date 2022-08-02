@@ -18,8 +18,8 @@ class PsiController:
     def _exec_service(self, action):
         self.iface._exec_service(action)
 
-    def _save_conf(self, config_file_path, config_file_tmp_path):
-        self.iface._save_conf(config_file_path, config_file_tmp_path)
+    def _save_conf(self, config_file_path, config_file_json):
+        self.iface._save_conf(config_file_path, config_file_json)
 
 psi_controller = None
 

@@ -21,17 +21,12 @@ def exec_service(action: str):
           stderr=PIPE, shell=True, text=True)
 
 
-def save_conf(config_file_path: str, config_file_tmp_path: str):
-
-    config_file_tmp_fd = open(config_file_tmp_path)
-    config_file_json = json.loads(config_file_tmp_fd.read())
-    config_file_tmp_fd.close()
+def save_conf(config_file_path: str, config_file_json: str):
 
     config_file_fd = open(config_file_path, "w")
     if (config_file_fd):
-        config_file_fd.write(json.dumps(config_file_json))
+        config_file_fd.write(config_file_json)
         config_file_fd.close()
-
 
 if __name__ == '__main__':
     pass
