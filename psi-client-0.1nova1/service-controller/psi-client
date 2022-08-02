@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 from optparse import OptionParser
 import sys
 from dbus.mainloop.glib import DBusGMainLoop
@@ -18,21 +19,27 @@ if exists(join(os.path.curdir, 'libpsiclient')):
 else:
     LIB_DIR = "/usr/lib/"+str(NAME)
 
-print(LIB_DIR)
-
 sys.path.insert(1, LIB_DIR)
 
+
 from libpsiclient.dbus_client import get_psi_controller
+
 
 class PsiManager():
     def __init__(self) -> None:
         self.config_file_path = "/etc/"+str(NAME)+".conf"
-        self.config_file_json = ""
+        self.config_file_json = ''
+
         self.local_proxy_port = 8081
+        self.local_socks_proxy_port = 1081
+
         self.egress_region = ''
         self.split_tunnel_own_region = True
         self.use_indistinguishable_tls = True
-        self.up_stream_proxy_url = "http://127.0.0.1:3128"
+
+        self.up_stream_proxy_url = ''
+
+        self.ip_info_dirpath = "/tmp/"+str(NAME)+"/"
         self.ip_info_path = "/tmp/"+str(NAME)+"/ip_info.json"
 
     def get_conf(self):
@@ -41,103 +48,265 @@ class PsiManager():
             self.config_file_json = json.loads(config_file_fd.read())
             config_file_fd.close()
 
-            self.local_proxy_port = self.config_file_json['LocalHttpProxyPort']
-            self.local_socks_proxy_port = self.config_file_json['LocalSocksProxyPort']
-            self.egress_region = self.config_file_json['EgressRegion']
-            self.split_tunnel_own_region = self.config_file_json['SplitTunnelOwnRegion']
-            self.use_indistinguishable_tls = self.config_file_json['UseIndistinguishableTLS']
-            self.up_stream_proxy_url = self.config_file_json['UpstreamProxyUrl']
+            self.local_proxy_port = int(
+                self.config_file_json['LocalHttpProxyPort'])
+            self.local_socks_proxy_port = int(
+                self.config_file_json['LocalSocksProxyPort'])
+
+            self.egress_region = str(self.config_file_json['EgressRegion'])
+            self.split_tunnel_own_region = bool(
+                self.config_file_json['SplitTunnelOwnRegion'])
+            self.use_indistinguishable_tls = bool(
+                self.config_file_json['UseIndistinguishableTLS'])
+            if ('UpstreamProxyUrl' in self.config_file_json):
+                self.up_stream_proxy_url = str(
+                    self.config_file_json['UpstreamProxyUrl'])
         except:
             pass
 
     def set_conf(self):
-        controller._save_conf(self.config_file_path, self.config_file_json)
 
-    def start_psiclient(self, controller):
+        if (self.config_file_json != ''):
+
+            self.config_file_json['LocalHttpProxyPort'] = int(
+                self.local_proxy_port)
+            self.config_file_json['LocalSocksProxyPort'] = int(
+                self.local_socks_proxy_port)
+
+            self.config_file_json['SplitTunnelOwnRegion'] = bool(
+                self.split_tunnel_own_region)
+            self.config_file_json['UseIndistinguishableTLS'] = bool(
+                self.use_indistinguishable_tls)
+
+            self.config_file_json['EgressRegion'] = str(self.egress_region)
+
+            if (self.up_stream_proxy_url != ''):
+                self.config_file_json['UpstreamProxyUrl'] = str(
+                    self.up_stream_proxy_url)
+            else:
+                if ('UpstreamProxyUrl' in self.config_file_json):
+                    del self.config_file_json['UpstreamProxyUrl']
+            
+            config_file_tmp_path = "/tmp/psi-client.conf.tmp"
+            fd=open(config_file_tmp_path, "w")
+            fd.truncate
+            fd.write(json.dumps(self.config_file_json))
+            fd.close()
+            
+            controller._save_conf(self.config_file_path, config_file_tmp_path)
+
+
+# Setters
+
+
+    def set_country(self, country: str):
+        if (country == "smart"):
+            self.egress_region = ' '
+        else:
+            self.egress_region = country
+
+    def set_upstream_proxy(self, proxy: str):
+        self.up_stream_proxy_url = proxy
+
+    def set_split_tunnel_own_region(self, split_tunnel: bool):
+        self.split_tunnel_own_region = split_tunnel
+
+    def set_use_indistinguishable_tls(self, tls: bool):
+        self.use_indistinguishable_tls = tls
+
+    def set_local_proxy_port(self, port: int):
+        self.local_proxy_port = port
+
+    def set_local_socks_proxy_port(self, port: int):
+        self.local_socks_proxy_port = port
+
+
+# Getters
+
+    def get_country(self, opt, value, values, val):
+        print(self.egress_region)
+        return self.egress_region
+
+    def get_upstream_proxy(self, opt, value, values, val):
+        print(self.up_stream_proxy_url)
+        return self.up_stream_proxy_url
+
+    def get_split_tunnel_own_region(self, opt, value, values, val):
+        print(self.split_tunnel_own_region)
+        return self.split_tunnel_own_region
+
+    def get_use_indistinguishable_tls(self, opt, value, values, val):
+        print(self.use_indistinguishable_tls)
+        return self.use_indistinguishable_tls
+
+    def get_local_proxy_port(self, opt, value, values, val):
+        print(self.local_proxy_port)
+        return self.local_proxy_port
+
+    def get_local_socks_proxy_port(self, opt, value, values, val):
+        print(self.local_socks_proxy_port)
+        return self.local_socks_proxy_port
+
+
+# Functions
+
+
+    def start_psiclient(self, opt, value, values, val, controller,):
         controller._exec_service("start")
 
-    def restart_psiclient(self, controller):
+    def restart_psiclient(self, opt, value, values, val, controller,):
         controller._exec_service("restart")
 
-    def stop_psiclient(self, controller):
+    def stop_psiclient(self, opt, value, values, val, controller,):
         controller._exec_service("stop")
 
     def get_ip_info(self, opt, value, values, val):
         try:
             session = requests.Session()
             session.proxies = {'http': 'http://127.0.0.1:' + str(self.local_proxy_port),
-                            'https': 'http://127.0.0.1:' + str(self.local_proxy_port), }
+                               'https': 'http://127.0.0.1:' + str(self.local_proxy_port), }
 
             url_text = session.get("http://ip-api.com/json").text
-            if not exists("/tmp/"+str(NAME)+"/"):
-                os.mkdir("/tmp/"+str(NAME)+"/")
+
+            if not exists(self.ip_info_dirpath):
+                os.mkdir(self.ip_info_dirpath)
             fd = open(self.ip_info_path, 'w')
             fd.write(url_text)
             fd.close()
             print("success")
         except:
-            print("error")
+            print("no network")
 
     def open_ip_info(self, query: str):
-        fd = open(self.ip_info_path)
-        ip_info_json = json.loads(fd.read())
-        fd.close()
-        print(ip_info_json[query])
-        return ip_info_json[query]
+        if exists(self.ip_info_path):
+            fd = open(self.ip_info_path)
+            ip_info_json = json.loads(fd.read())
+            fd.close()
+            print(ip_info_json[query])
+            return ip_info_json[query]
+        else:
+            return "None"
 
-    def get_ip(self, opt, value, values, val):
+    def get_location_ip(self, opt, value, values, val):
         return self.open_ip_info('query')
 
-    def get_country(self, opt, value, values, val):
+    def get_location_country(self, opt, value, values, val):
         return self.open_ip_info('country')
 
-    def get_country_code(self, opt, value, values, val):
+    def get_location_country_code(self, opt, value, values, val):
         return self.open_ip_info('countryCode')
 
-    def get_city(self, opt, value, values, val):
+    def get_location_city(self, opt, value, values, val):
         return self.open_ip_info('city')
-
 
 
 if __name__ == '__main__':
     DBusGMainLoop(set_as_default=True)
     controller = get_psi_controller()
     psi_manager = PsiManager()
+    # Load Info
     psi_manager.get_conf()
 
     parser = OptionParser("usage: %prog --action=(start|restart|stop)",
                           version="%prog " + str(VERSION))
-    parser.add_option("-a", "--action", action="store", type="string", default="start",
-                      help="Select service activation"
-                      )
 
     parser.add_option("--location",
                       action="callback", callback=psi_manager.get_ip_info,
+                      help="get reference information about psiphon ip")
+
+    parser.add_option("--location_ip",
+                      action="callback", callback=psi_manager.get_location_ip,
                       help="show current ip on internet")
 
-    parser.add_option("--ip",
-                      action="callback", callback=psi_manager.get_ip,
-                      help="show current ip on internet")
-
-    parser.add_option("--country",
-                      action="callback", callback=psi_manager.get_country,
+    parser.add_option("--location_country",
+                      action="callback", callback=psi_manager.get_location_country,
                       help="show current country on internet")
 
-    parser.add_option("--country-code",
-                      action="callback", callback=psi_manager.get_country_code,
+    parser.add_option("--location_country_code",
+                      action="callback", callback=psi_manager.get_location_country_code,
                       help="show current country code on internet")
 
-    parser.add_option("--city",
-                      action="callback", callback=psi_manager.get_city,
+    parser.add_option("--location_city",
+                      action="callback", callback=psi_manager.get_location_city,
                       help="show current city on internet")
+
+    parser.add_option("--start",
+                      action="callback", callback=psi_manager.start_psiclient, callback_args=(controller, ),
+                      help="start psi-client-core service")
+
+    parser.add_option("--restart",
+                      action="callback", callback=psi_manager.restart_psiclient, callback_args=(controller, ),
+                      help="restart psi-client service")
+
+    parser.add_option("--stop",
+                      action="callback", callback=psi_manager.stop_psiclient, callback_args=(controller, ),
+                      help="stop psi-client service")
+
+    parser.add_option("--get_country",
+                      action="callback", callback=psi_manager.get_country,
+                      help="get country code")
+
+    parser.add_option("--get_upstream_proxy",
+                      action="callback", callback=psi_manager.get_upstream_proxy,
+                      help="get upper proxy")
+
+    parser.add_option("--get_split_tunnel_own_region",
+                      action="callback", callback=psi_manager.get_split_tunnel_own_region,
+                      help="split proxy for local country")
+
+    parser.add_option("--get_use_indistinguishable_tls",
+                      action="callback", callback=psi_manager.get_use_indistinguishable_tls,
+                      help="use crypto tls")
+
+    parser.add_option("--get_local_proxy_port",
+                      action="callback", callback=psi_manager.get_local_proxy_port,
+                      help="get psiphon proxy port")
+
+    parser.add_option("--get_local_socks_proxy_port",
+                      action="callback", callback=psi_manager.get_local_socks_proxy_port,
+                      help="get psiphon socks port")
+
+    parser.add_option("--set_country",
+                      action="store", type="string",
+                      help="set country code")
+    parser.add_option("--set_upstream_proxy",
+                      action="store", type="string",
+                      help="set upper proxy")
+    parser.add_option("--set_split_tunnel",
+                      action="store", type="string",
+                      help="split proxy for local country")
+    parser.add_option("--set_tls",
+                      action="store", type="string",
+                      help="use crypto tls")
+    parser.add_option("--set_local_proxy_port",
+                      action="store", type="int",
+                      help="set psiphon proxy port")
+    parser.add_option("--set_local_socks_proxy_port",
+                      action="store", type="int",
+                      help="set psiphon socks port")
 
     (option, args) = parser.parse_args()
 
-    if option.action == "start":
-        psi_manager.start_psiclient(controller)
-    elif option.action == "restart":
-        psi_manager.restart_psiclient(controller)
-    elif option.action == "stop":
-        psi_manager.stop_psiclient(controller)
-    else:
-        print("Null")
+    if (option.set_country is not None):
+        psi_manager.set_country(option.set_country)
+
+    if (option.set_upstream_proxy is not None and option.set_upstream_proxy == ""):
+        psi_manager.set_upstream_proxy('')
+    elif (option.set_upstream_proxy is not None):
+        psi_manager.set_upstream_proxy(option.set_upstream_proxy)
+
+    if (option.set_split_tunnel is not None):
+        psi_manager.set_split_tunnel_own_region(option.set_split_tunnel)
+
+    if (option.set_tls is not None):
+        psi_manager.set_use_indistinguishable_tls(option.set_tls)
+
+    if (option.set_local_proxy_port is not None):
+        psi_manager.set_local_proxy_port(int(option.set_local_proxy_port))
+
+    if (option.set_local_socks_proxy_port is not None):
+        psi_manager.set_local_proxy_port(
+            int(option.set_local_socks_proxy_port))
+
+    # Save Info
+    psi_manager.set_conf()

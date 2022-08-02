@@ -39,9 +39,6 @@ PsiClientApplet.prototype = {
       .toString()
       .trim();
 
-    //Service status
-    let serviceState = "falsefalsefalse";
-
     try {
       //Variables
       this.restartService = false;
@@ -231,17 +228,16 @@ PsiClientApplet.prototype = {
 
     if (is_active) {
       let connected =
-        " " + GLib.spawn_command_line_sync("psi-client --location");
+        " " + GLib.spawn_command_line_sync("psi-client --location ");
 
       this.is_connected = connected.lastIndexOf("success");
 
       if (this.is_connected) {
-        let ip = " " + GLib.spawn_command_line_sync("psi-client --ip");
-        let country =
-          " " + GLib.spawn_command_line_sync("psi-client --country");
-        let country_code =
-          " " + GLib.spawn_command_line_sync("psi-client --country-code");
-        let city = " " + GLib.spawn_command_line_sync("psi-client --city");
+
+        let ip = " " + GLib.spawn_command_line_async("psi-client --ip");
+        let country = " " + GLib.spawn_command_line_async("psi-client --country");
+        let country_code = " " + GLib.spawn_command_line_async("psi-client --country-code");
+        let city=" " + GLib.spawn_command_line_async("psi-client --city");
 
         this.set_applet_icon_path(this.icon_connected);
         this.set_applet_tooltip(_("On line"));
