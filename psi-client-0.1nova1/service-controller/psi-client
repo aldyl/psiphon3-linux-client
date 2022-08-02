@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
+
 from optparse import OptionParser
+from subprocess import PIPE, Popen
 import sys
 from dbus.mainloop.glib import DBusGMainLoop
 
@@ -33,6 +35,7 @@ class PsiManager():
         self.local_proxy_port = 8081
         self.local_socks_proxy_port = 1081
 
+        self.AvailableEgressRegions = ''
         self.egress_region = ''
         self.split_tunnel_own_region = True
         self.use_indistinguishable_tls = True
@@ -41,6 +44,8 @@ class PsiManager():
 
         self.ip_info_dirpath = "/tmp/"+str(NAME)+"/"
         self.ip_info_path = "/tmp/"+str(NAME)+"/ip_info.json"
+
+        self.status_path = "/var/log/psi-client.json"
 
     def get_conf(self):
         try:
@@ -86,8 +91,9 @@ class PsiManager():
             else:
                 if ('UpstreamProxyUrl' in self.config_file_json):
                     del self.config_file_json['UpstreamProxyUrl']
-                        
-            controller._save_conf(self.config_file_path, json.dumps(self.config_file_json))
+
+            controller._save_conf(self.config_file_path,
+                                  json.dumps(self.config_file_json))
 
 
 # Setters
@@ -97,7 +103,16 @@ class PsiManager():
         if (country == "smart"):
             self.egress_region = ' '
         else:
-            self.egress_region = country
+            notices_fd = open(self.status_path, "r")
+            for notices in notices_fd.readlines():
+                if "regions" in notices and "AvailableEgressRegions" in notices:
+                    self.AvailableEgressRegions = notices.split(":", 1)[1].split(
+                        "}")[0].split("{")[1].split(":")[1].split("[")[1].split("]")[0].strip(",")
+            
+            if country.upper() in self.AvailableEgressRegions:
+                self.egress_region = country.upper()
+            else:
+                print("Error, only available: " + str(self.AvailableEgressRegions))
 
     def set_upstream_proxy(self, proxy: str):
         self.up_stream_proxy_url = proxy
@@ -154,7 +169,29 @@ class PsiManager():
     def stop_psiclient(self, opt, value, values, val, controller,):
         controller._exec_service("stop")
 
-    def get_ip_info(self, opt, value, values, val):
+    def _run_cmd(self, cmd, **input_data):
+        process = Popen(cmd, stdin=PIPE, stdout=PIPE,
+                    stderr=PIPE, shell=True, text=True)
+        out, err = process.communicate(**input_data)
+
+        return process.returncode, out, err
+    
+    def status(self, opt, value, values, val):
+        out = str(self._run_cmd("service psi-client status"))
+        if (out.find("active (running)") > -1):
+            self.status="await"
+            if (self.get_ip_info() == "connected"):
+                self.status="connected"
+        
+        if (out.find("active (exited)") > -1):
+            self.status="exited"
+        if (out.find("inactive (dead)") > -1):
+            self.status="exited"
+
+        print(self.status)
+
+
+    def get_ip_info(self): 
         try:
             session = requests.Session()
             session.proxies = {'http': 'http://127.0.0.1:' + str(self.local_proxy_port),
@@ -167,9 +204,9 @@ class PsiManager():
             fd = open(self.ip_info_path, 'w')
             fd.write(url_text)
             fd.close()
-            print("success")
+            return("connected")
         except:
-            print("no network")
+            return("disconnected")
 
     def open_ip_info(self, query: str):
         if exists(self.ip_info_path):
@@ -204,9 +241,9 @@ if __name__ == '__main__':
     parser = OptionParser("usage: %prog --action=(start|restart|stop)",
                           version="%prog " + str(VERSION))
 
-    parser.add_option("--location",
-                      action="callback", callback=psi_manager.get_ip_info,
-                      help="get reference information about psiphon ip")
+    parser.add_option("--status",
+                      action="callback", callback=psi_manager.status,
+                      help="show psiphon status connected|await|stopped")
 
     parser.add_option("--location_ip",
                       action="callback", callback=psi_manager.get_location_ip,
