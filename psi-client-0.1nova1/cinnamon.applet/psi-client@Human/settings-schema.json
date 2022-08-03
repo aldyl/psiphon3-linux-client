@@ -17,7 +17,7 @@
     "default": "smart",
     "description": "Location Server",
     "options": {
-      "Smart Location": "automatic",
+      "Smart Location": "smart",
       "Austria (AT)": "AT",
       "Belgium (BE)": "BE",
       "Bulgaria (BG)": "BG",

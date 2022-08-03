@@ -1,55 +1,46 @@
-const Lang = imports.lang;
-const Applet = imports.ui.applet;
-const GLib = imports.gi.GLib;
-const Settings = imports.ui.settings;
-const MainLoop = imports.mainloop;
-const Gettext = imports.gettext;
-const St = imports.gi.St;
-const UUID = "psi-client@Human";
-
+const Lang = imports.lang; // This applet functions
+const Applet = imports.ui.applet; // This kind of applet
+const GLib = imports.gi.GLib; //Create a process
+const Gio = imports.gi.Gio; //File operations
+const Settings = imports.ui.settings; // Create setting
+const MainLoop = imports.mainloop; // Makes a command Loop
+const St = imports.gi.St; // For menu icons
 const PopupMenu = imports.ui.popupMenu; // Create the PopUp Menu
 
-const _ = function (str) {
-  let translation = Gettext.gettext(str);
-  if (translation !== str) {
-    return translation;
-  }
-  return Gettext.dgettext(UUID, str);
-};
+const UUID = "psi-client@Human";
 
-function PsiClientApplet(metadata, orientation, instance_id) {
-  this._init(metadata, orientation, instance_id);
+function PsiClientApplet(metadata, orientation, panel_height, instance_id) {
+  this._init(metadata, orientation, panel_height, instance_id);
 }
 
 PsiClientApplet.prototype = {
   __proto__: Applet.IconApplet.prototype,
 
-  _init: function (metadata, orientation, instance_id) {
-    Applet.IconApplet.prototype._init.call(this, orientation, instance_id);
-
-    //State icons
-    this.icon_connected = (metadata.path + "/Data/connected.svg")
-      .toString()
-      .trim();
-    this.icon_active = (metadata.path + "/Data/await.svg").toString().trim();
-    this.icon_active_exited = (metadata.path + "/Data/await.svg")
-      .toString()
-      .trim();
-    this.icon_inactive = (metadata.path + "/Data/inactive.svg")
-      .toString()
-      .trim();
-
+  _init: function (metadata, orientation, panel_height, instance_id) {
+    Applet.IconApplet.prototype._init.call(
+      this,
+      orientation,
+      panel_height,
+      instance_id
+    );
     try {
+      //State icons
+      this.icon_connected = (metadata.path + "/Data/connected.svg")
+        .toString()
+        .trim();
+      this.icon_active = (metadata.path + "/Data/await.svg").toString().trim();
+      this.icon_inactive = (metadata.path + "/Data/inactive.svg")
+        .toString()
+        .trim();
+
+      this.set_applet_icon_path(this.icon_inactive);
+
       //Variables
-      this.restartService = false;
-      this.stopService = false;
-
       this.isLooping = true;
+      this.previousState = "exited";
       this.waitForCmd = false;
-      this.servicePath = null;
-      this.is_connected = false;
-      this.psiClientPath = "/etc/init.d/psi-client";
 
+      //Configuration menu
       this.state = {};
       this.settings = new Settings.AppletSettings(
         this.state,
@@ -61,7 +52,7 @@ PsiClientApplet.prototype = {
         Settings.BindingDirection.IN,
         "location",
         "location",
-        () => this.on_settings_changed(),
+        () => this.on_settings_location_changed(),
         null
       );
 
@@ -71,62 +62,85 @@ PsiClientApplet.prototype = {
         "interval"
       );
 
-      this.menuItemsInfo = [];
-
       // Create the popup menu
+      this.menuItemsInfo = [];
       this.menuManager = new PopupMenu.PopupMenuManager(this);
       this.menu = new Applet.AppletPopupMenu(this, orientation);
       this.menuManager.addMenu(this.menu);
 
       //Detect valid path
-      if (!this.servicePath) this.detectService();
+      if (!this.found_service) this.detectService();
 
       //Check service status
       this.check_service_status();
       this.loopId = MainLoop.timeout_add(this.state.interval, () =>
         this.check_service_status()
       );
-
-      this.set_applet_icon_path(this.icon_inactive);
     } catch (e) {
       global.logError(e);
     }
   },
 
-  on_settings_changed: function () {
-    if (this.loopId > 0) {
-      MainLoop.source_remove(this.loopId);
-    }
-    this.loopId = 0;
-    this.restartService = true;
-    this.check_service_status();
-    this.loopId = MainLoop.timeout_add(this.state.interval, () =>
-      this.check_service_status()
-    );
+  on_settings_location_changed: function () {
+    this.check_service_status_async("--set_country=" + this.state.location);
+    this.check_service_status_async("--restart");
   },
 
   detectService: function () {
-    let resp = " " + GLib.spawn_command_line_sync("service psi-client");
-    let is_active = resp.indexOf(this.psiClientPath) > -1;
-
-    // detect if service is available
-
-    if (is_active) {
-      this.servicePath = this.psiClientPath;
+    let resp = this.check_service_status_async("--start");
+    if (resp) {
+      this.set_applet_tooltip(" " + _("Service found "));
     } else {
-      this.servicePath = null;
-    }
-
-    if (this.servicePath) {
-      this.set_applet_tooltip(" " + _("Service found ") + this.servicePath);
-    } else {
-      this.set_applet_tooltip(
-        " " + _("Please install psi-client service") + this.servicePath
-      );
+      this.set_applet_tooltip(" " + _("Please install psi-client service"));
     }
   },
 
+  get_ip_menu_information: async function () {
+    let items_info = []; //Items for menu
+
+    if (this.previousState.lastIndexOf("connected") > -1) {
+      let args = [
+        "psi-client",
+        "--location_info",
+        "--location_country",
+        "--location_city",
+        "--location_ip",
+      ];
+
+      let out = await this.exec_sync_command(args);
+
+      items_info.push("✅️".concat(out.trim().replace(/connected/g, "Location✅️")));
+
+      this.menuItemsInfo = items_info;
+    } else {
+      this.menuItemsInfo = items_info;
+    }
+  },
+
+  exec_sync_command: function (argv, input = null, cancellable = null) {
+    let flags = Gio.SubprocessFlags.STDOUT_PIPE;
+
+    if (input !== null) flags |= Gio.SubprocessFlags.STDIN_PIPE;
+
+    let proc = new Gio.Subprocess({
+      argv: argv,
+      flags: flags,
+    });
+    proc.init(cancellable);
+
+    return new Promise((resolve, reject) => {
+      proc.communicate_utf8_async(input, cancellable, (proc, res) => {
+        try {
+          resolve(proc.communicate_utf8_finish(res)[1]);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+  },
+
   on_applet_clicked: function () {
+    this.get_ip_menu_information();
     this.buildMenu(this.menuItemsInfo);
     this.menu.toggle();
   },
@@ -158,22 +172,28 @@ PsiClientApplet.prototype = {
       St.IconType.SYMBOLIC
     );
 
-    connect_button.connect("activate", Lang.bind(this, this._connect_button));
+    let connect_button_id = connect_button.connect(
+      "activate",
+      Lang.bind(this, this._connect_button)
+    );
 
     let disconnect_button = new PopupMenu.PopupIconMenuItem(
       _("Disconnect"),
       "security-low-symbolic",
       St.IconType.SYMBOLIC
     );
-    disconnect_button.connect(
+    let disconnect_button_id = disconnect_button.connect(
       "activate",
       Lang.bind(this, this._disconnect_button)
     );
 
     let section_buttons = new PopupMenu.PopupMenuSection();
 
-    if (this.is_connected) section_buttons.addMenuItem(disconnect_button);
-    else section_buttons.addMenuItem(connect_button);
+    if (this.previousState.lastIndexOf("connected") > -1) {
+      section_buttons.addMenuItem(disconnect_button);
+    } else {
+      section_buttons.addMenuItem(connect_button);
+    }
 
     this.menu.addMenuItem(section_buttons);
 
@@ -182,18 +202,16 @@ PsiClientApplet.prototype = {
     }
   },
 
-  check_service_status_exec: function (action) {
-    let textOut =
-      " " + GLib.spawn_command_line_sync(this.servicePath + " " + action);
-    return textOut;
+  check_service_status_async: function (action) {
+    return GLib.spawn_command_line_async("psi-client " + action);
   },
 
   _connect_button: function (option, event) {
-    GLib.spawn_command_line_sync("psi-client --action=restart");
+    this.check_service_status_async("--restart");
   },
 
   _disconnect_button: function (option, event) {
-    GLib.spawn_command_line_sync("psi-client --action=stop");
+    this.check_service_status_async("--stop");
   },
 
   check_service_status: function () {
@@ -202,12 +220,9 @@ PsiClientApplet.prototype = {
     }
 
     try {
-      if (this.servicePath && !this.waitForCmd) {
+      if (!this.waitForCmd) {
         this.waitForCmd = true;
-
-        this.check_service_status_icon(
-          this.check_service_status_exec("status")
-        );
+        this.check_service_status_icon();
       }
     } catch (e) {
       global.logError(e);
@@ -217,58 +232,28 @@ PsiClientApplet.prototype = {
     return true;
   },
 
-  check_service_status_icon: function (statusStr) {
-    let items_info = []; //Items for menu
+  check_service_status_icon: function () {
+    let textOut = " " + GLib.spawn_command_line_sync("psi-client --status");
 
-    let is_active = statusStr.indexOf("active (running)") > -1; // Allow  for stopping
-    let is_active_exited = statusStr.indexOf("active (exited)") > -1; // Allow for restart
-    let is_inactive = statusStr.indexOf("inactive (dead)") > -1; // Allow for starting
-
-    let currentState = "" + is_active + is_active_exited + is_inactive;
-
-    if (is_active) {
-      let connected =
-        " " + GLib.spawn_command_line_sync("psi-client --location ");
-
-      this.is_connected = connected.lastIndexOf("success");
-
-      if (this.is_connected) {
-
-        let ip = " " + GLib.spawn_command_line_async("psi-client --ip");
-        let country = " " + GLib.spawn_command_line_async("psi-client --country");
-        let country_code = " " + GLib.spawn_command_line_async("psi-client --country-code");
-        let city=" " + GLib.spawn_command_line_async("psi-client --city");
-
+    if (textOut.lastIndexOf(this.previousState) < 0) {
+      if (textOut.lastIndexOf("connected") > -1) {
         this.set_applet_icon_path(this.icon_connected);
-        this.set_applet_tooltip(_("On line"));
+        this.set_applet_tooltip(_("Connected"));
+        this.previousState = "connected";
+        this.get_ip_menu_information();
+      }
 
-        items_info.push(country);
-        items_info.push(_("Country code: ") + country_code);
-        items_info.push(_("City: ") + city);
-        items_info.push(_("IP: ") + ip);
-        
-      } else {
-
+      if (textOut.lastIndexOf("await") > -1) {
         this.set_applet_icon_path(this.icon_active);
-        this.set_applet_tooltip(_("Await for network"));
-        items_info.push(_("Await for Network"));
+        this.set_applet_tooltip(_("Await"));
+        this.previousState = "await";
       }
-    } else {
-      this.set_applet_tooltip(_("Service off "));
-      items_info.push(_("Service Disconnected"));
 
-      if (is_active_exited) {
-        this.set_applet_icon_path(this.icon_active_exited);
-      }
-      if (is_inactive) {
+      if (textOut.lastIndexOf("exited") > -1) {
         this.set_applet_icon_path(this.icon_inactive);
+        this.set_applet_tooltip(_("Disconnected"));
+        this.previousState = "exited";
       }
-    }
-
-    if (this.menu.isOpen) {
-      this.buildMenu(items_info);
-    } else {
-      this.menuItemsInfo = items_info;
     }
 
     this.waitForCmd = false;
@@ -276,6 +261,6 @@ PsiClientApplet.prototype = {
   },
 };
 
-function main(metadata, orientation, instance_id) {
-  return new PsiClientApplet(metadata, orientation, instance_id);
+function main(metadata, orientation, panel_height, instance_id) {
+  return new PsiClientApplet(metadata, orientation, panel_height, instance_id);
 }
