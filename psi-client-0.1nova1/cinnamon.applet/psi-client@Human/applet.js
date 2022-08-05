@@ -33,11 +33,13 @@ PsiClientApplet.prototype = {
         .toString()
         .trim();
 
-      this.set_applet_icon_path(this.icon_inactive);
-
       //Variables
+      this.numberCall = 0;
       this.isLooping = true;
       this.previousState = "exited";
+      this.connect_button = null;
+      this.disconnect_button = null;
+      this.section_info = null;
       this.waitForCmd = false;
 
       //Configuration menu
@@ -59,7 +61,9 @@ PsiClientApplet.prototype = {
       this.settings.bindProperty(
         Settings.BindingDirection.IN,
         "interval",
-        "interval"
+        "interval",
+        () => this.on_settings_changed_interval(),
+        null
       );
 
       this.settings.bindProperty(
@@ -69,6 +73,7 @@ PsiClientApplet.prototype = {
         () => this.on_settings_changed(),
         null
       );
+
       this.settings.bindProperty(
         Settings.BindingDirection.IN,
         "upstream-proxy",
@@ -109,60 +114,71 @@ PsiClientApplet.prototype = {
         null
       );
 
+      this.settings.bindProperty(
+        Settings.BindingDirection.IN,
+        "use-any-interface",
+        "use_any_interface",
+        () => this.on_settings_changed(),
+        null
+      );
+
+     
       // Create the popup menu
       this.menuItemsInfo = [];
       this.menuManager = new PopupMenu.PopupMenuManager(this);
       this.menu = new Applet.AppletPopupMenu(this, orientation);
       this.menuManager.addMenu(this.menu);
 
-      //Detect valid path
-      if (!this.found_service) this.detectService();
-
       //Check service status
       this.check_service_status();
       this.loopId = MainLoop.timeout_add(this.state.interval, () =>
         this.check_service_status()
       );
+
+      this.set_applet_icon_path(this.icon_active);
     } catch (e) {
       global.logError(e);
     }
   },
 
-  on_settings_changed: function () {
-    if (this.state.use_split_tunnel)
-      this.check_service_status_async("--use_split_tunnel");
-    else this.check_service_status_async("--no_use_split_tunnel");
-
-    if (this.state.use_indistinguishable_tls)
-      this.check_service_status_async("--use_indistinguishable_tls");
-    else this.check_service_status_async("--no_use_indistinguishable_tls");
-
-    if (this.state.use_upstream_proxy)
-      this.check_service_status_async(
-        "--set_upstream_proxy=" + this.state.upstream_proxy
-      );
-    else this.check_service_status_async("--set_upstream_proxy=" + "");
-
-    this.check_service_status_async("--set_country=" + this.state.location);
-
-    this.check_service_status_async(
-      "--set_local_proxy_port=" + this.state.set_local_proxy_port
+  on_settings_changed_interval: function () {
+    if (this.loopId > 0) {
+      MainLoop.source_remove(this.loopId);
+    }
+    this.loopId = 0;
+    this.check_service_status();
+    this.loopId = MainLoop.timeout_add(this.state.interval, () =>
+      this.check_service_status()
     );
-
-    this.check_service_status_async(
-      "--set_local_socks_proxy_port=" + this.state.set_local_socks_proxy_port
-    );
-
-    this.check_service_status_async("--restart");
   },
 
-  detectService: function () {
-    let resp = this.check_service_status_async("--start");
-    if (resp) {
-      this.set_applet_tooltip(" " + _("Service found "));
-    } else {
-      this.set_applet_tooltip(" " + _("Please install psi-client service"));
-    }
+  on_settings_changed: function () {
+    let actions = "";
+
+    if (this.state.use_split_tunnel) actions += " --use_split_tunnel";
+    else actions += " --no_use_split_tunnel";
+
+    if (this.state.use_indistinguishable_tls)
+      actions += " --use_indistinguishable_tls";
+    else actions += " --no_use_indistinguishable_tls";
+
+    if (this.state.use_upstream_proxy)
+      actions += " --set_upstream_proxy=" + this.state.upstream_proxy;
+    else actions += " --set_upstream_proxy=";
+
+    actions += " --set_country=" + this.state.location;
+
+    actions += " --set_local_proxy_port=" + this.state.set_local_proxy_port;
+
+    actions +=
+      " --set_local_socks_proxy_port=" + this.state.set_local_socks_proxy_port;
+
+    if (this.state.use_any_interface) actions += " --set_listen_interface=any";
+    else actions += " --set_listen_interface=127.0.0.1";
+
+    this.check_service_status_async(actions);
+
+    this.check_service_status_async("--restart");
   },
 
   get_ip_menu_information: async function () {
@@ -189,7 +205,88 @@ PsiClientApplet.prototype = {
     }
   },
 
+  on_applet_clicked: function () {
+    this.get_ip_menu_information();
+    this.buildMenu(this.menuItemsInfo);
+    this.menu.toggle();
+  },
+
+  on_applet_removed_from_panel: function () {
+    this.menu.removeAll();
+    MainLoop.source_remove(this.loopId);
+    this.loopId = 0;
+    this.isLooping = false;
+    this.settings.finalize();
+  },
+
+buildButtons: function() {
+  this.connect_button = new PopupMenu.PopupIconMenuItem(
+    _("Connect ") + this.state.location,
+    "security-high-symbolic",
+    St.IconType.SYMBOLIC
+  );
+
+  this.connect_button_id = this.connect_button.connect(
+    "activate",
+    Lang.bind(this, this._connect_button)
+  );
+
+  this.disconnect_button = new PopupMenu.PopupIconMenuItem(
+    _("Disconnect"),
+    "security-low-symbolic",
+    St.IconType.SYMBOLIC
+  );
+
+  this.disconnect_button_id = this.disconnect_button.connect(
+    "activate",
+    Lang.bind(this, this._disconnect_button)
+  );
+},
+
+
+  buildMenu: function (items_info) {
+    this.menu.removeAll();
+
+    let isOpen = this.menu.isOpen;
+    
+    this.section_info = new PopupMenu.PopupMenuSection();
+    if (items_info.length > 0) {
+      for (let i = 0; i < items_info.length; i++) {
+        let item = new PopupMenu.PopupMenuItem(items_info[i]);
+        this.section_info.addMenuItem(item);
+      }
+    }
+
+    this.menu.addMenuItem(this.section_info);
+
+    let section_buttons = new PopupMenu.PopupMenuSection();
+
+    this.buildButtons();
+    if (this.previousState.lastIndexOf("connected") > -1) {
+      section_buttons.addMenuItem(this.disconnect_button);
+    } else {
+      section_buttons.addMenuItem(this.connect_button);
+    }
+
+    this.menu.addMenuItem(section_buttons);
+
+    if (isOpen) {
+      this.menu.open();
+    }
+  },
+
+  check_service_status_async: function (action) {
+    //global.log("Async call #" + this.numberCall + action);
+   // this.numberCall += 1;
+
+    return GLib.spawn_command_line_async("psi-client " + action);
+  },
+
   exec_sync_command: function (argv, input = null, cancellable = null) {
+    //global.log("Sys Gio call #" + this.numberCall + argv);
+
+    //this.numberCall += 1;
+
     let flags = Gio.SubprocessFlags.STDOUT_PIPE;
 
     if (input !== null) flags |= Gio.SubprocessFlags.STDIN_PIPE;
@@ -209,73 +306,6 @@ PsiClientApplet.prototype = {
         }
       });
     });
-  },
-
-  on_applet_clicked: function () {
-    this.get_ip_menu_information();
-    this.buildMenu(this.menuItemsInfo);
-    this.menu.toggle();
-  },
-
-  on_applet_removed_from_panel: function () {
-    MainLoop.source_remove(this.loopId);
-    this.loopId = 0;
-    this.isLooping = false;
-    this.settings.finalize();
-  },
-
-  buildMenu: function (items_info) {
-    this.menu.removeAll();
-
-    let isOpen = this.menu.isOpen;
-
-    let section_info = new PopupMenu.PopupMenuSection();
-    if (items_info.length > 0) {
-      for (let i = 0; i < items_info.length; i++) {
-        let item = new PopupMenu.PopupMenuItem(items_info[i]);
-        section_info.addMenuItem(item);
-      }
-    }
-    this.menu.addMenuItem(section_info);
-
-    let connect_button = new PopupMenu.PopupIconMenuItem(
-      _("Connect ") + this.state.location,
-      "security-high-symbolic",
-      St.IconType.SYMBOLIC
-    );
-
-    let connect_button_id = connect_button.connect(
-      "activate",
-      Lang.bind(this, this._connect_button)
-    );
-
-    let disconnect_button = new PopupMenu.PopupIconMenuItem(
-      _("Disconnect"),
-      "security-low-symbolic",
-      St.IconType.SYMBOLIC
-    );
-    let disconnect_button_id = disconnect_button.connect(
-      "activate",
-      Lang.bind(this, this._disconnect_button)
-    );
-
-    let section_buttons = new PopupMenu.PopupMenuSection();
-
-    if (this.previousState.lastIndexOf("connected") > -1) {
-      section_buttons.addMenuItem(disconnect_button);
-    } else {
-      section_buttons.addMenuItem(connect_button);
-    }
-
-    this.menu.addMenuItem(section_buttons);
-
-    if (isOpen) {
-      this.menu.open();
-    }
-  },
-
-  check_service_status_async: function (action) {
-    return GLib.spawn_command_line_async("psi-client " + action);
   },
 
   _connect_button: function (option, event) {
@@ -304,24 +334,26 @@ PsiClientApplet.prototype = {
     return true;
   },
 
-  check_service_status_icon: function () {
-    let textOut = " " + GLib.spawn_command_line_sync("psi-client --status");
+  check_service_status_icon: async function () {
+    let args = ["psi-client", "--status"];
 
-    if (textOut.lastIndexOf(this.previousState) < 0) {
-      if (textOut.lastIndexOf("connected") > -1) {
+    let out = await this.exec_sync_command(args);
+
+    if (out.lastIndexOf(this.previousState) < 0) {
+      if (out.lastIndexOf("connected") > -1) {
         this.set_applet_icon_path(this.icon_connected);
         this.set_applet_tooltip(_("Connected"));
         this.previousState = "connected";
         this.get_ip_menu_information();
       }
 
-      if (textOut.lastIndexOf("await") > -1) {
+      if (out.lastIndexOf("await") > -1) {
         this.set_applet_icon_path(this.icon_active);
         this.set_applet_tooltip(_("Await"));
         this.previousState = "await";
       }
 
-      if (textOut.lastIndexOf("exited") > -1) {
+      if (out.lastIndexOf("exited") > -1) {
         this.set_applet_icon_path(this.icon_inactive);
         this.set_applet_tooltip(_("Disconnected"));
         this.previousState = "exited";

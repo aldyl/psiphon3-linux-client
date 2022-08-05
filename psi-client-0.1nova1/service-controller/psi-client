@@ -1,14 +1,12 @@
 #!/usr/bin/python3
-from optparse import OptionParser
-from subprocess import PIPE, Popen
-import sys
-from dbus.mainloop.glib import DBusGMainLoop
-
-import requests
-import json
-
-import os
 from os.path import exists, join
+import os
+import json
+import requests
+from dbus.mainloop.glib import DBusGMainLoop
+import sys
+from subprocess import PIPE, Popen
+from optparse import OptionParser
 
 
 VERSION = 1
@@ -22,6 +20,7 @@ else:
 sys.path.insert(1, LIB_DIR)
 
 from libpsiclient.dbus_client import get_psi_controller
+
 class PsiManager():
     def __init__(self) -> None:
         self.config_file_path = "/etc/"+str(NAME)+".conf"
@@ -29,6 +28,7 @@ class PsiManager():
 
         self.local_proxy_port = 8081
         self.local_socks_proxy_port = 1081
+        self.listen_interface = "127.0.0.1"
 
         self.AvailableEgressRegions = ''
         self.egress_region = ''
@@ -50,14 +50,21 @@ class PsiManager():
 
             self.local_proxy_port = int(
                 self.config_file_json['LocalHttpProxyPort'])
+
             self.local_socks_proxy_port = int(
                 self.config_file_json['LocalSocksProxyPort'])
 
+            self.listen_interface = int(
+                self.config_file_json['ListenInterface'])            
+
             self.egress_region = str(self.config_file_json['EgressRegion'])
+
             self.split_tunnel_own_region = bool(
                 self.config_file_json['SplitTunnelOwnRegion'])
+
             self.use_indistinguishable_tls = bool(
                 self.config_file_json['UseIndistinguishableTLS'])
+
             if ('UpstreamProxyUrl' in self.config_file_json):
                 self.up_stream_proxy_url = str(
                     self.config_file_json['UpstreamProxyUrl'])
@@ -73,6 +80,8 @@ class PsiManager():
 
             self.config_file_json['LocalSocksProxyPort'] = int(
                 self.local_socks_proxy_port)
+
+            self.config_file_json['ListenInterface'] = str(self.listen_interface) 
 
             self.config_file_json['SplitTunnelOwnRegion'] = bool(
                 self.split_tunnel_own_region)
@@ -127,6 +136,9 @@ class PsiManager():
     def set_local_socks_proxy_port(self, port: int):
         self.local_socks_proxy_port = port
 
+    def set_listen_interface(self,ip: str):
+        self.listen_interface = ip
+
 
 # Getters
 
@@ -154,9 +166,11 @@ class PsiManager():
         print(self.local_socks_proxy_port)
         return self.local_socks_proxy_port
 
+    def get_listen_interface(self, opt, value, values, val):
+        print(self.listen_interface)
+        return self.listen_interface
 
 # Functions
-
 
     def start_psiclient(self, opt, value, values, val, controller,):
         controller._exec_service("start")
@@ -188,7 +202,7 @@ class PsiManager():
                 if '{"count":0}' in notices and "Tunnels" in notices:
                     self.status = "await"
                 if '{"count":1}' in notices and "Tunnels" in notices:
-                    self.status = "connected"   
+                    self.status = "connected"
 
         if (out.find("active (exited)") > -1):
             self.status = "exited"
@@ -201,8 +215,7 @@ class PsiManager():
     def get_ip_info(self, opt, value, values, val):
         try:
             session = requests.Session()
-            session.proxies = {'http': 'http://127.0.0.1:' + str(self.local_proxy_port),
-                               'https': 'http://127.0.0.1:' + str(self.local_proxy_port), }
+            session.proxies = {'http': 'http://' + self.listen_interface +':' + str(self.local_proxy_port), }
 
             url_text = session.get("http://ip-api.com/json").text
 
@@ -287,15 +300,17 @@ if __name__ == '__main__':
     parser.add_option("--set_country",
                       action="store", type="string",
                       help="set country code")
+
     parser.add_option("--set_upstream_proxy",
                       action="store", type="string",
                       help="set upper proxy")
 
     parser.add_option("--use_split_tunnel",
-                      action="store_true", 
+                      action="store_true",
                       help="split proxy for local country")
+
     parser.add_option("--no_use_split_tunnel",
-                      action="store_false", 
+                      action="store_false",
                       help="split proxy for local country")
 
     parser.add_option("--use_indistinguishable_tls",
@@ -305,7 +320,7 @@ if __name__ == '__main__':
     parser.add_option("--no_use_indistinguishable_tls",
                       action="store_false",
                       help="not connect using indistinguishable_tls")
-                      
+
     parser.add_option("--set_local_proxy_port",
                       action="store", type="int",
                       help="set psiphon proxy port")
@@ -313,6 +328,10 @@ if __name__ == '__main__':
     parser.add_option("--set_local_socks_proxy_port",
                       action="store", type="int",
                       help="set psiphon socks port")
+
+    parser.add_option("--set_listen_interface",
+                      action="store", type="string",
+                      help="set listen interface")
 
     parser.add_option("--get_country",
                       action="callback", callback=psi_manager.get_country,
@@ -338,8 +357,12 @@ if __name__ == '__main__':
                       action="callback", callback=psi_manager.get_local_socks_proxy_port,
                       help="get psiphon socks port")
 
+    parser.add_option("--get_listen_interface",
+                      action="callback", callback=psi_manager.get_listen_interface,
+                      help="get listen interface")
+
     (option, args) = parser.parse_args()
-    
+
     changed_conf = False
 
     if (option.set_country is not None):
@@ -353,21 +376,22 @@ if __name__ == '__main__':
         psi_manager.set_upstream_proxy(option.set_upstream_proxy)
         changed_conf = True
 
-
-    if  (option.use_split_tunnel is not None):
+    if (option.use_split_tunnel is not None):
         psi_manager.set_split_tunnel_own_region(option.use_split_tunnel)
         changed_conf = True
 
-    if  (option.no_use_split_tunnel is not None):
+    if (option.no_use_split_tunnel is not None):
         psi_manager.set_split_tunnel_own_region(option.no_use_split_tunnel)
         changed_conf = True
 
     if (option.use_indistinguishable_tls is not None):
-        psi_manager.set_use_indistinguishable_tls(option.use_indistinguishable_tls)
+        psi_manager.set_use_indistinguishable_tls(
+            option.use_indistinguishable_tls)
         changed_conf = True
 
     if (option.no_use_indistinguishable_tls is not None):
-        psi_manager.set_use_indistinguishable_tls(option.no_use_indistinguishable_tls)
+        psi_manager.set_use_indistinguishable_tls(
+            option.no_use_indistinguishable_tls)
         changed_conf = True
 
     if (option.set_local_proxy_port is not None):
@@ -378,7 +402,14 @@ if __name__ == '__main__':
         psi_manager.set_local_socks_proxy_port(
             int(option.set_local_socks_proxy_port))
         changed_conf = True
-      
+
+    if (option.set_listen_interface is not None):
+        psi_manager.set_listen_interface(
+            str(option.set_listen_interface))
+        changed_conf = True
+
     if (changed_conf):
         # Save Info
+        changed_conf = False
         psi_manager.set_conf()
+
