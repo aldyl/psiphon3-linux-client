@@ -3,6 +3,53 @@
     "type": "header",
     "description": "Configuration"
   },
+
+  "set-local-proxy-port": {
+    "type": "spinbutton",
+    "default": 8081,
+    "min": 1000,
+    "max": 1000000,
+    "step": 1,
+    "description": "Local http port"
+  },
+
+  "set-local-socks-proxy-port": {
+    "type": "spinbutton",
+    "default": 1081,
+    "min": 1000,
+    "max": 1000000,
+    "step": 1,
+    "description": "Local socks5 port"
+  },
+
+  "use-split-tunnel": {
+    "type": "switch",
+    "default": true,
+    "description": "Split tunnel for local region",
+    "tooltip": "No use psiphon for user country access"
+  },
+
+  "use-indistinguishable-tls": {
+    "type": "switch",
+    "default": true,
+    "description": "Encrypt the connection with TLS tunnel",
+    "tooltip": "Use a TLS connection with psiphon"
+  },
+
+  "use-upstream-proxy": {
+    "type": "switch",
+    "default": false,
+    "description": "Use upstream proxy",
+    "tooltip": "Use a corporate proxy to connect to internet."
+  },
+  "upstream-proxy": {
+    "type": "entry",
+    "default": "http://localhost:3128",
+    "description": "Upstream proxy",
+    "tooltip": "Use a corporate proxy cntlm over http/s",
+    "dependency": "use-upstream-proxy"
+  },
+
   "interval": {
     "type": "spinbutton",
     "default": 5000,

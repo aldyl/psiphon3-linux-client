@@ -70,11 +70,13 @@ class PsiManager():
 
             self.config_file_json['LocalHttpProxyPort'] = int(
                 self.local_proxy_port)
+
             self.config_file_json['LocalSocksProxyPort'] = int(
                 self.local_socks_proxy_port)
 
             self.config_file_json['SplitTunnelOwnRegion'] = bool(
                 self.split_tunnel_own_region)
+
             self.config_file_json['UseIndistinguishableTLS'] = bool(
                 self.use_indistinguishable_tls)
 
@@ -97,7 +99,6 @@ class PsiManager():
     def set_country(self, country: str):
         if (country == "smart"):
             self.egress_region = ''
-            print("set smart")
         else:
             notices_fd = open(self.status_path, "r")
             for notices in notices_fd.readlines():
@@ -107,7 +108,6 @@ class PsiManager():
 
             if country.upper() in self.AvailableEgressRegions:
                 self.egress_region = country.upper()
-                print("set " + country.upper())
             else:
                 print("Error, only available: " +
                       str(self.AvailableEgressRegions))
@@ -290,15 +290,26 @@ if __name__ == '__main__':
     parser.add_option("--set_upstream_proxy",
                       action="store", type="string",
                       help="set upper proxy")
-    parser.add_option("--set_split_tunnel",
-                      action="store", type="string",
+
+    parser.add_option("--use_split_tunnel",
+                      action="store_true", 
                       help="split proxy for local country")
-    parser.add_option("--set_tls",
-                      action="store", type="string",
-                      help="use crypto tls")
+    parser.add_option("--no_use_split_tunnel",
+                      action="store_false", 
+                      help="split proxy for local country")
+
+    parser.add_option("--use_indistinguishable_tls",
+                      action="store_true",
+                      help="connect using indistinguishable_tls")
+
+    parser.add_option("--no_use_indistinguishable_tls",
+                      action="store_false",
+                      help="not connect using indistinguishable_tls")
+                      
     parser.add_option("--set_local_proxy_port",
                       action="store", type="int",
                       help="set psiphon proxy port")
+
     parser.add_option("--set_local_socks_proxy_port",
                       action="store", type="int",
                       help="set psiphon socks port")
@@ -328,27 +339,46 @@ if __name__ == '__main__':
                       help="get psiphon socks port")
 
     (option, args) = parser.parse_args()
+    
+    changed_conf = False
 
     if (option.set_country is not None):
         psi_manager.set_country(option.set_country)
+        changed_conf = True
 
     if (option.set_upstream_proxy is not None and option.set_upstream_proxy == ""):
         psi_manager.set_upstream_proxy('')
+        changed_conf = True
     elif (option.set_upstream_proxy is not None):
         psi_manager.set_upstream_proxy(option.set_upstream_proxy)
+        changed_conf = True
 
-    if (option.set_split_tunnel is not None):
-        psi_manager.set_split_tunnel_own_region(option.set_split_tunnel)
 
-    if (option.set_tls is not None):
-        psi_manager.set_use_indistinguishable_tls(option.set_tls)
+    if  (option.use_split_tunnel is not None):
+        psi_manager.set_split_tunnel_own_region(option.use_split_tunnel)
+        changed_conf = True
+
+    if  (option.no_use_split_tunnel is not None):
+        psi_manager.set_split_tunnel_own_region(option.no_use_split_tunnel)
+        changed_conf = True
+
+    if (option.use_indistinguishable_tls is not None):
+        psi_manager.set_use_indistinguishable_tls(option.use_indistinguishable_tls)
+        changed_conf = True
+
+    if (option.no_use_indistinguishable_tls is not None):
+        psi_manager.set_use_indistinguishable_tls(option.no_use_indistinguishable_tls)
+        changed_conf = True
 
     if (option.set_local_proxy_port is not None):
         psi_manager.set_local_proxy_port(int(option.set_local_proxy_port))
+        changed_conf = True
 
     if (option.set_local_socks_proxy_port is not None):
-        psi_manager.set_local_proxy_port(
+        psi_manager.set_local_socks_proxy_port(
             int(option.set_local_socks_proxy_port))
-
-    # Save Info
-    psi_manager.set_conf()
+        changed_conf = True
+      
+    if (changed_conf):
+        # Save Info
+        psi_manager.set_conf()

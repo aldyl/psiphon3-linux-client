@@ -52,7 +52,7 @@ PsiClientApplet.prototype = {
         Settings.BindingDirection.IN,
         "location",
         "location",
-        () => this.on_settings_location_changed(),
+        () => this.on_settings_changed(),
         null
       );
 
@@ -60,6 +60,53 @@ PsiClientApplet.prototype = {
         Settings.BindingDirection.IN,
         "interval",
         "interval"
+      );
+
+      this.settings.bindProperty(
+        Settings.BindingDirection.IN,
+        "use-upstream-proxy",
+        "use_upstream_proxy",
+        () => this.on_settings_changed(),
+        null
+      );
+      this.settings.bindProperty(
+        Settings.BindingDirection.IN,
+        "upstream-proxy",
+        "upstream_proxy",
+        () => this.on_settings_changed(),
+        null
+      );
+
+      this.settings.bindProperty(
+        Settings.BindingDirection.IN,
+        "use-split-tunnel",
+        "use_split_tunnel",
+        () => this.on_settings_changed(),
+        null
+      );
+
+      this.settings.bindProperty(
+        Settings.BindingDirection.IN,
+        "use-indistinguishable-tls",
+        "use_indistinguishable_tls",
+        () => this.on_settings_changed(),
+        null
+      );
+
+      this.settings.bindProperty(
+        Settings.BindingDirection.IN,
+        "set-local-proxy-port",
+        "set_local_proxy_port",
+        () => this.on_settings_changed(),
+        null
+      );
+
+      this.settings.bindProperty(
+        Settings.BindingDirection.IN,
+        "set-local-socks-proxy-port",
+        "set_local_socks_proxy_port",
+        () => this.on_settings_changed(),
+        null
       );
 
       // Create the popup menu
@@ -81,8 +128,31 @@ PsiClientApplet.prototype = {
     }
   },
 
-  on_settings_location_changed: function () {
+  on_settings_changed: function () {
+    if (this.state.use_split_tunnel)
+      this.check_service_status_async("--use_split_tunnel");
+    else this.check_service_status_async("--no_use_split_tunnel");
+
+    if (this.state.use_indistinguishable_tls)
+      this.check_service_status_async("--use_indistinguishable_tls");
+    else this.check_service_status_async("--no_use_indistinguishable_tls");
+
+    if (this.state.use_upstream_proxy)
+      this.check_service_status_async(
+        "--set_upstream_proxy=" + this.state.upstream_proxy
+      );
+    else this.check_service_status_async("--set_upstream_proxy=" + "");
+
     this.check_service_status_async("--set_country=" + this.state.location);
+
+    this.check_service_status_async(
+      "--set_local_proxy_port=" + this.state.set_local_proxy_port
+    );
+
+    this.check_service_status_async(
+      "--set_local_socks_proxy_port=" + this.state.set_local_socks_proxy_port
+    );
+
     this.check_service_status_async("--restart");
   },
 
@@ -109,7 +179,9 @@ PsiClientApplet.prototype = {
 
       let out = await this.exec_sync_command(args);
 
-      items_info.push("✅️".concat(out.trim().replace(/connected/g, "Location✅️")));
+      items_info.push(
+        "✅️".concat(out.trim().replace(/connected/g, "Location✅️"))
+      );
 
       this.menuItemsInfo = items_info;
     } else {
