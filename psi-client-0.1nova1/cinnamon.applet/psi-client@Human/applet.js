@@ -174,7 +174,7 @@ PsiClientApplet.prototype = {
       " --set_local_socks_proxy_port=" + this.state.set_local_socks_proxy_port;
 
     if (this.state.use_any_interface) actions += " --set_listen_interface=any";
-    else actions += " --set_listen_interface=127.0.0.1";
+    else actions += " --set_listen_interface=localhost";
 
     this.check_service_status_async(actions);
 
@@ -313,6 +313,7 @@ buildButtons: function() {
   },
 
   _disconnect_button: function (option, event) {
+    
     this.check_service_status_async("--stop");
   },
 

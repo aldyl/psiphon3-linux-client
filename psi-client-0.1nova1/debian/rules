@@ -20,7 +20,7 @@ build:
 	cp psi-client-core debian/psi-client/usr/sbin/psi-client-core
 	mkdir -p debian/psi-client/etc/
 	cp psi-client.conf debian/psi-client/etc/psi-client.conf
-	mkdir -p debian/psi-client/var/local/psi-client/ca.psiphon.PsiphonTunnel.tunnel-core/
+	mkdir -p debian/psi-client/var/cache/psi-client/ca.psiphon.PsiphonTunnel.tunnel-core/
 	mkdir -p debian/psi-client/usr/share/dbus-1/system-services/
 	cp -rf service-controller/data/cu.human.psiclient.controller.service    debian/psi-client/usr/share/dbus-1/system-services/cu.human.psiclient.controller.service
 	mkdir -p debian/psi-client/usr/share/polkit-1/actions/

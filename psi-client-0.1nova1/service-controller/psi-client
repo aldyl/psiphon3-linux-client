@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 from os.path import exists, join
 import os
 import json
@@ -54,8 +55,9 @@ class PsiManager():
             self.local_socks_proxy_port = int(
                 self.config_file_json['LocalSocksProxyPort'])
 
-            self.listen_interface = int(
-                self.config_file_json['ListenInterface'])            
+            if ('ListenInterface' in self.config_file_json):
+                self.listen_interface = int(
+                    self.config_file_json['ListenInterface'])
 
             self.egress_region = str(self.config_file_json['EgressRegion'])
 
@@ -81,7 +83,12 @@ class PsiManager():
             self.config_file_json['LocalSocksProxyPort'] = int(
                 self.local_socks_proxy_port)
 
-            self.config_file_json['ListenInterface'] = str(self.listen_interface) 
+            if (self.listen_interface != '127.0.0.1') or (self.listen_interface != 'localhost'):
+                self.config_file_json['ListenInterface'] = str(
+                    self.listen_interface)
+            else:
+                if ('ListenInterface' in self.config_file_json):
+                    del self.config_file_json['ListenInterface']
 
             self.config_file_json['SplitTunnelOwnRegion'] = bool(
                 self.split_tunnel_own_region)
@@ -136,7 +143,7 @@ class PsiManager():
     def set_local_socks_proxy_port(self, port: int):
         self.local_socks_proxy_port = port
 
-    def set_listen_interface(self,ip: str):
+    def set_listen_interface(self, ip: str):
         self.listen_interface = ip
 
 
@@ -214,10 +221,10 @@ class PsiManager():
 
     def get_ip_info(self, opt, value, values, val):
         try:
-            session = requests.Session()
-            session.proxies = {'http': 'http://' + self.listen_interface +':' + str(self.local_proxy_port), }
+            proxies = {'http': 'http://' + self.listen_interface + ':' + str(self.local_proxy_port),
+                               'https': 'http: // ' + self.listen_interface + ': ' + str(self.local_proxy_port)}
 
-            url_text = session.get("http://ip-api.com/json").text
+            url_text = requests.post("http://ip-api.com/json", proxies=proxies).text
 
             if not exists(self.ip_info_dirpath):
                 os.mkdir(self.ip_info_dirpath)
@@ -331,7 +338,7 @@ if __name__ == '__main__':
 
     parser.add_option("--set_listen_interface",
                       action="store", type="string",
-                      help="set listen interface")
+                      help="set listen interface if no then localhost or 127.0.0.1 ")
 
     parser.add_option("--get_country",
                       action="callback", callback=psi_manager.get_country,
@@ -412,4 +419,3 @@ if __name__ == '__main__':
         # Save Info
         changed_conf = False
         psi_manager.set_conf()
-
